@@ -1,1 +1,35 @@
 # NoPlay
+
+Parental control trasparente scritto in Rust: chiude i videogiochi sul PC e si gestisce da Telegram.
+
+NoPlay gira **in chiaro** (nessuna modalità nascosta), risponde **solo** agli ID Telegram dei proprietari
+indicati in `config.json` e **non esegue comandi shell arbitrari**: ogni azione è un comando specifico.
+
+## Setup
+
+1. Crea un bot con [@BotFather](https://t.me/BotFather) e copia il token.
+2. Scopri il tuo ID Telegram (es. con [@userinfobot](https://t.me/userinfobot)).
+3. `cp config.example.json config.json` e inserisci token e `owner_ids`.
+4. `cargo run --release`
+
+`config.json` è ignorato da git: non committare mai il token. Si può usare un altro percorso con `NOPLAY_CONFIG`.
+
+## Comandi Telegram
+
+| Comando | Cosa fa |
+|---|---|
+| `/status` | blocco attivo/pausa e giochi aperti |
+| `/kill` | chiude subito i giochi aperti |
+| `/enforce on\|off` | attiva o disattiva il blocco |
+| `/allow <minuti>` | permette i giochi per un tempo limitato |
+| `/add <nome>` / `/remove <nome>` | modifica la blocklist (nome processo, senza `.exe`) |
+| `/list` | mostra la blocklist |
+| `/lock` | blocca lo schermo |
+| `/help` | elenco comandi |
+
+Mentre il blocco è attivo, ogni `poll_interval_seconds` il programma chiude i processi in blocklist e avvisa i proprietari su Telegram.
+
+## Note
+
+- Il matching è sul nome esatto del processo (minuscolo, senza `.exe`), per non chiudere programmi sbagliati.
+- Per l'avvio automatico con il PC usa l'Utilità di pianificazione (Windows) o un servizio systemd (Linux).

@@ -1,0 +1,5 @@
+# Segreti e configurazione locale: NON committare mai il token!
+config.json
+
+# Rust
+/target/

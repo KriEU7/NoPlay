@@ -1,0 +1,20 @@
+{
+  "bot_token": "INSERISCI_QUI_IL_TOKEN_DI_BOTFATHER",
+  "owner_ids": [123456789],
+  "blocklist": [
+    "steam",
+    "epicgameslauncher",
+    "leagueclient",
+    "valorant",
+    "fortniteclient-win64-shipping",
+    "minecraft",
+    "roblox",
+    "gtav",
+    "csgo",
+    "cs2"
+  ],
+  "poll_interval_seconds": 5,
+  "enforce": true,
+  "allowed_windows": [],
+  "screenshots_enabled": false
+}
