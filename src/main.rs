@@ -1,8 +1,13 @@
+// In release su Windows gira senza finestra di console (resta visibile in Gestione attività).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
+mod autostart;
 mod config;
 mod enforcer;
 mod schedule;
 
 use std::{
+    io::Write,
     process::Command as Proc,
     sync::Arc,
     time::{Duration, Instant},
@@ -189,14 +194,60 @@ fn save_reply(cfg: &Config, ok: &str) -> String {
     }
 }
 
+/// Scrive un messaggio per chi ha lanciato il programma da terminale.
+/// Senza console (Windows release) si aggancia a quella del processo padre.
+fn say(msg: &str) {
+    #[cfg(all(windows, not(debug_assertions)))]
+    {
+        extern "system" {
+            fn AttachConsole(process_id: u32) -> i32;
+        }
+        // SAFETY: chiamata Win32 senza puntatori; fallisce innocuamente se non c'è un padre con console.
+        if unsafe { AttachConsole(u32::MAX) } != 0 {
+            if let Ok(mut con) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
+                let _ = writeln!(con, "{msg}");
+            }
+        }
+    }
+    #[cfg(not(all(windows, not(debug_assertions))))]
+    println!("{msg}");
+}
+
+/// Senza console gli errori andrebbero persi: li accodiamo a `noplay.log` accanto all'eseguibile.
+fn log_error(msg: &str) {
+    let path = config::exe_dir().unwrap_or_default().join("noplay.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(f, "{msg}");
+    }
+}
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    let result = match std::env::args().nth(1).as_deref() {
+        Some("install") => autostart::install().map(|m| say(&m)),
+        Some("uninstall") => autostart::uninstall().map(|m| say(&m)),
+        _ => run().await,
+    };
+    if let Err(e) = result {
+        let msg = format!("errore: {e:#}");
+        log_error(&msg);
+        say(&msg);
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
     pretty_env_logger::init();
     let cfg = Config::load()?;
     let bot = Bot::new(cfg.bot_token.clone());
+    let owners = cfg.owner_ids.clone();
     let state = Arc::new(AppState::new(cfg));
 
     log::info!("NoPlay avviato (visibile, nessuna modalità nascosta)");
+    let host = System::host_name().unwrap_or_else(|| "PC".into());
+    for id in owners {
+        let _ = bot.send_message(ChatId(id as i64), format!("✅ NoPlay avviato su {host}")).await;
+    }
     tokio::spawn(enforcer::run(bot.clone(), state.clone()));
 
     let handler = Update::filter_message().filter_command::<Command>().endpoint(answer);

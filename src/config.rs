@@ -29,10 +29,21 @@ fn default_true() -> bool {
     true
 }
 
+/// Cartella dell'eseguibile (all'avvio automatico la cartella di lavoro è un'altra).
+pub fn exe_dir() -> Option<PathBuf> {
+    std::env::current_exe().ok()?.parent().map(PathBuf::from)
+}
+
+/// `NOPLAY_CONFIG`, altrimenti `./config.json` se esiste, altrimenti accanto all'eseguibile.
 pub fn config_path() -> PathBuf {
-    std::env::var_os("NOPLAY_CONFIG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("config.json"))
+    if let Some(p) = std::env::var_os("NOPLAY_CONFIG") {
+        return PathBuf::from(p);
+    }
+    let local = PathBuf::from("config.json");
+    if local.exists() {
+        return local;
+    }
+    exe_dir().map(|d| d.join("config.json")).unwrap_or(local)
 }
 
 /// Normalizza un nome di processo: minuscolo e senza estensione `.exe`.

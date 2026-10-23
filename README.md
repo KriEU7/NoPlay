@@ -39,7 +39,16 @@ Senza fasce, i giochi sono sempre bloccati. Le fasce si gestiscono da Telegram c
 salvate in `config.json`. Giorni: `lun mar mer gio ven sab dom`, intervalli (`lun-ven`), liste (`sab,dom`) o `tutti`.
 `/allow <minuti>` resta come eccezione una tantum, e `/enforce off` disattiva tutto.
 
+## Esecuzione in background
+
+- Su Windows la build release parte **senza finestra di console**; il processo `noplay.exe` resta ben visibile in Gestione attività.
+- `noplay install` registra l'avvio automatico al login (Windows: attività pianificata `NoPlay`, serve un terminale come amministratore; Linux: servizio systemd utente). `noplay uninstall` lo rimuove.
+- Ad ogni avvio il bot ti scrive su Telegram "NoPlay avviato su <nome PC>".
+- Il `config.json` viene cercato nella cartella corrente e poi accanto all'eseguibile.
+- Gli errori di avvio (config mancante, token sbagliato) finiscono in `noplay.log` accanto all'eseguibile.
+
+Chiunque abbia i permessi può terminare il processo: NoPlay non si protegge da questo. Per rendere la cosa robusta usa il sistema operativo, ad esempio un account utente standard per chi viene controllato e l'installazione dall'account amministratore.
+
 ## Note
 
 - Il matching è sul nome esatto del processo (minuscolo, senza `.exe`), per non chiudere programmi sbagliati.
-- Per l'avvio automatico con il PC usa l'Utilità di pianificazione (Windows) o un servizio systemd (Linux).
