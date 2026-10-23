@@ -1,6 +1,6 @@
 {
   "bot_token": "INSERISCI_QUI_IL_TOKEN_DI_BOTFATHER",
-  "owner_ids": [123456789],
+  "owner_ids": [],
   "blocklist": [
     "robloxplayerbeta",
     "robloxplayerlauncher",

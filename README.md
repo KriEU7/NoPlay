@@ -9,8 +9,8 @@ indicati in `config.json` e **non esegue comandi shell arbitrari**: ogni azione 
 
 1. Crea un bot con [@BotFather](https://t.me/BotFather) e copia il token.
 2. Scopri il tuo ID Telegram (es. con [@userinfobot](https://t.me/userinfobot)).
-3. `cp config.example.json config.json` e inserisci token e `owner_ids`.
-4. `cargo run --release`
+3. Avvia `noplay` (o `cargo run --release`): al primo avvio crea da solo `config.json` (accanto all'eseguibile, o nella cartella corrente se c'è già) con una blocklist e delle fasce di esempio, e si ferma.
+4. Apri `config.json`, inserisci `bot_token` e il tuo ID in `owner_ids`, e riavvia.
 
 `config.json` è ignorato da git: non committare mai il token. Si può usare un altro percorso con `NOPLAY_CONFIG`.
 

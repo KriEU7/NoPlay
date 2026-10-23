@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::schedule::Window;
 
+/// Config di partenza, la stessa di `config.example.json`.
+const TEMPLATE: &str = include_str!("../config.example.json");
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub bot_token: String,
@@ -53,13 +56,26 @@ pub fn normalize(name: &str) -> String {
 }
 
 impl Config {
+    /// Carica la config; se manca ne crea una da `config.example.json` e si ferma
+    /// finché l'utente non ha inserito token e ID Telegram.
     pub fn load() -> Result<Self> {
         let path = config_path();
-        let raw = fs::read_to_string(&path)
-            .with_context(|| format!("impossibile leggere {} (copia config.example.json)", path.display()))?;
-        let mut cfg: Config = serde_json::from_str(&raw).context("config.json non valido")?;
+        if !path.exists() {
+            fs::write(&path, TEMPLATE).with_context(|| format!("impossibile creare {}", path.display()))?;
+            anyhow::bail!(
+                "config non trovata: ne ho creata una in {}. Inserisci bot_token e owner_ids, poi riavvia",
+                path.display()
+            );
+        }
+        let raw = fs::read_to_string(&path).with_context(|| format!("impossibile leggere {}", path.display()))?;
+        let mut cfg: Config = serde_json::from_str(&raw).with_context(|| format!("{} non valido", path.display()))?;
         cfg.blocklist = cfg.blocklist.iter().map(|s| normalize(s)).collect();
-        anyhow::ensure!(!cfg.owner_ids.is_empty(), "owner_ids è vuoto: nessuno potrebbe usare il bot");
+        anyhow::ensure!(
+            !cfg.bot_token.is_empty() && !cfg.bot_token.starts_with("INSERISCI"),
+            "bot_token non impostato in {}",
+            path.display()
+        );
+        anyhow::ensure!(!cfg.owner_ids.is_empty(), "owner_ids è vuoto in {}: nessuno potrebbe usare il bot", path.display());
         Ok(cfg)
     }
 
