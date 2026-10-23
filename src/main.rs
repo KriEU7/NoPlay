@@ -5,6 +5,10 @@ mod autostart;
 mod config;
 mod enforcer;
 mod schedule;
+#[cfg(windows)]
+mod tray;
+mod ui;
+mod update;
 
 use std::{
     io::Write,
@@ -39,10 +43,14 @@ enum Command {
     Remove(String),
     #[command(description = "mostra la blocklist")]
     List,
-    #[command(description = "[add <giorni> <HH:MM-HH:MM> | del <n> | clear]: fasce in cui i giochi sono permessi")]
+    #[command(
+        description = "[add <giorni> <HH:MM-HH:MM> | del <n> | clear]: fasce in cui i giochi sono permessi"
+    )]
     Schedule(String),
-    #[command(description = "blocca lo schermo del PC")]
+    #[command(description = "blocca lo schermo del PC (richiede la password per rientrare)")]
     Lock,
+    #[command(description = "controlla e installa un aggiornamento dalle release di GitHub")]
+    Update,
 }
 
 fn lock_screen() -> std::io::Result<()> {
@@ -84,16 +92,26 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
             let open = enforcer::running_blocked(&sys, &cfg);
             let paused = match *state.paused_until.lock().await {
                 Some(t) if t > Instant::now() => {
-                    format!("in pausa ancora {} min", (t - Instant::now()).as_secs() / 60 + 1)
+                    format!(
+                        "in pausa ancora {} min",
+                        (t - Instant::now()).as_secs() / 60 + 1
+                    )
                 }
                 _ => "nessuna pausa".into(),
             };
             let games = if open.is_empty() {
                 "nessuno".to_string()
             } else {
-                open.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>().join(", ")
+                open.iter()
+                    .map(|(_, n)| n.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             };
-            let window = if schedule::allowed_now(&cfg.schedule) { "giochi permessi ora" } else { "fuori fascia" };
+            let window = if schedule::allowed_now(&cfg.schedule) {
+                "giochi permessi ora"
+            } else {
+                "fuori fascia"
+            };
             format!(
                 "Blocco: {}\nFascia: {window}\nPausa: {paused}\nGiochi aperti: {games}",
                 if cfg.enforce { "attivo" } else { "disattivato" }
@@ -102,19 +120,31 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
         Command::Kill => {
             let cfg = state.config.lock().await.clone();
             let killed = enforcer::kill_blocked(&mut System::new(), &cfg);
-            if killed.is_empty() { "Nessun gioco aperto.".into() } else { format!("Chiusi: {}", killed.join(", ")) }
+            if killed.is_empty() {
+                "Nessun gioco aperto.".into()
+            } else {
+                format!("Chiusi: {}", killed.join(", "))
+            }
         }
         Command::Enforce(arg) => match arg.trim().to_lowercase().as_str() {
             "on" | "off" => {
                 let on = arg.trim().eq_ignore_ascii_case("on");
                 let mut cfg = state.config.lock().await;
                 cfg.enforce = on;
-                save_reply(&cfg, if on { "Blocco attivato." } else { "Blocco disattivato." })
+                save_reply(
+                    &cfg,
+                    if on {
+                        "Blocco attivato."
+                    } else {
+                        "Blocco disattivato."
+                    },
+                )
             }
             _ => "Uso: /enforce on|off".into(),
         },
         Command::Allow(minutes) => {
-            *state.paused_until.lock().await = Some(Instant::now() + Duration::from_secs(minutes * 60));
+            *state.paused_until.lock().await =
+                Some(Instant::now() + Duration::from_secs(minutes * 60));
             format!("Giochi permessi per {minutes} minuti, poi il blocco riparte.")
         }
         Command::Add(name) => {
@@ -169,8 +199,18 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
             }
         }
         Command::Lock => match lock_screen() {
-            Ok(()) => "Schermo bloccato.".into(),
+            Ok(()) => "Schermo bloccato (serve la password per rientrare).".into(),
             Err(e) => format!("Impossibile bloccare lo schermo: {e}"),
+        },
+        Command::Update => match update::check_and_apply().await {
+            Ok(Some(tag)) => {
+                bot.send_message(msg.chat.id, format!("🔄 Aggiornato a {tag}, riavvio..."))
+                    .await?;
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                std::process::exit(0);
+            }
+            Ok(None) => "Nessun aggiornamento disponibile.".into(),
+            Err(e) => format!("Controllo aggiornamenti fallito: {e:#}"),
         },
     };
 
@@ -182,8 +222,12 @@ fn schedule_list(cfg: &Config) -> String {
     if cfg.schedule.is_empty() {
         return "Nessuna fascia: i giochi sono sempre bloccati.".into();
     }
-    let lines: Vec<String> =
-        cfg.schedule.iter().enumerate().map(|(i, w)| format!("{}. {}", i + 1, w.describe())).collect();
+    let lines: Vec<String> = cfg
+        .schedule
+        .iter()
+        .enumerate()
+        .map(|(i, w)| format!("{}. {}", i + 1, w.describe()))
+        .collect();
     format!("Giochi permessi in queste fasce:\n{}", lines.join("\n"))
 }
 
@@ -216,7 +260,11 @@ fn say(msg: &str) {
 /// Senza console gli errori andrebbero persi: li accodiamo a `noplay.log` accanto all'eseguibile.
 fn log_error(msg: &str) {
     let path = config::exe_dir().unwrap_or_default().join("noplay.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
         let _ = writeln!(f, "{msg}");
     }
 }
@@ -246,11 +294,18 @@ async fn run() -> Result<()> {
     log::info!("NoPlay avviato (visibile, nessuna modalità nascosta)");
     let host = System::host_name().unwrap_or_else(|| "PC".into());
     for id in owners {
-        let _ = bot.send_message(ChatId(id as i64), format!("✅ NoPlay avviato su {host}")).await;
+        let _ = bot
+            .send_message(ChatId(id as i64), format!("✅ NoPlay avviato su {host}"))
+            .await;
     }
     tokio::spawn(enforcer::run(bot.clone(), state.clone()));
+    tokio::spawn(update::run_periodic(bot.clone(), state.clone()));
+    #[cfg(windows)]
+    tray::spawn(bot.clone(), state.clone());
 
-    let handler = Update::filter_message().filter_command::<Command>().endpoint(answer);
+    let handler = Update::filter_message()
+        .filter_command::<Command>()
+        .endpoint(answer);
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![state])
         .build()

@@ -34,6 +34,22 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Stesso tag che la release job pubblicherà: l'auto-update (update.rs)
+      # lo confronta con quello dell'ultima release per sapere se è aggiornato.
+      - name: Compute release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "push" ]; then
+            tag="dev"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            tag="${{ github.ref_name }}"
+          else
+            version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+            tag="v${version}-build.${{ github.run_number }}"
+          fi
+          echo "NOPLAY_RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+
       - name: Test
         run: cargo test --locked
 
@@ -55,10 +71,22 @@ jobs:
             echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
           fi
 
+      - name: Checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$ASSET" > "$ASSET.sha256"
+          else
+            shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: noplay-${{ matrix.name }}
-          path: ${{ env.ASSET }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
 
   release:
     name: Publish release
@@ -84,6 +112,12 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Build checksums file
+        run: |
+          set -euo pipefail
+          cat dist/*.sha256 > dist/SHA256SUMS.txt
+          rm dist/*.sha256
 
       - uses: softprops/action-gh-release@v2
         with:

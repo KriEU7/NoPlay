@@ -22,14 +22,31 @@ pub struct Config {
     /// Fasce in cui i giochi sono permessi. Se vuota, i giochi sono sempre bloccati.
     #[serde(default)]
     pub schedule: Vec<Window>,
+    /// Messaggio mostrato sullo schermo del PC quando un gioco viene chiuso.
+    #[serde(default = "default_ban_message")]
+    pub ban_message: String,
+    /// Controlla da solo le release su GitHub e si aggiorna. Scarica sempre e solo
+    /// dal repository del progetto, non da un indirizzo scelto qui o da Telegram.
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
+    #[serde(default = "default_update_interval")]
+    pub update_check_interval_hours: u64,
 }
 
 fn default_poll() -> u64 {
-    5
+    2
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_update_interval() -> u64 {
+    6
+}
+
+fn default_ban_message() -> String {
+    "🚫 Sei stato bannato dal gioco. Riprova più tardi.".to_string()
 }
 
 /// Cartella dell'eseguibile (all'avvio automatico la cartella di lavoro è un'altra).
@@ -61,21 +78,28 @@ impl Config {
     pub fn load() -> Result<Self> {
         let path = config_path();
         if !path.exists() {
-            fs::write(&path, TEMPLATE).with_context(|| format!("impossibile creare {}", path.display()))?;
+            fs::write(&path, TEMPLATE)
+                .with_context(|| format!("impossibile creare {}", path.display()))?;
             anyhow::bail!(
                 "config non trovata: ne ho creata una in {}. Inserisci bot_token e owner_ids, poi riavvia",
                 path.display()
             );
         }
-        let raw = fs::read_to_string(&path).with_context(|| format!("impossibile leggere {}", path.display()))?;
-        let mut cfg: Config = serde_json::from_str(&raw).with_context(|| format!("{} non valido", path.display()))?;
+        let raw = fs::read_to_string(&path)
+            .with_context(|| format!("impossibile leggere {}", path.display()))?;
+        let mut cfg: Config =
+            serde_json::from_str(&raw).with_context(|| format!("{} non valido", path.display()))?;
         cfg.blocklist = cfg.blocklist.iter().map(|s| normalize(s)).collect();
         anyhow::ensure!(
             !cfg.bot_token.is_empty() && !cfg.bot_token.starts_with("INSERISCI"),
             "bot_token non impostato in {}",
             path.display()
         );
-        anyhow::ensure!(!cfg.owner_ids.is_empty(), "owner_ids è vuoto in {}: nessuno potrebbe usare il bot", path.display());
+        anyhow::ensure!(
+            !cfg.owner_ids.is_empty(),
+            "owner_ids è vuoto in {}: nessuno potrebbe usare il bot",
+            path.display()
+        );
         Ok(cfg)
     }
 

@@ -6,7 +6,7 @@ description = "Parental control trasparente: blocca i videogiochi sul PC e si ge
 
 [dependencies]
 teloxide = { version = "0.13", default-features = false, features = ["macros", "rustls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "process"] }
 sysinfo = "0.33"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
@@ -14,6 +14,18 @@ serde_json = "1"
 anyhow = "1"
 log = "0.4"
 pretty_env_logger = "0.5"
+# Auto-update: scarica solo dalle release di GitHub (indirizzo fisso nel codice).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tray-icon = "0.19"
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
+[target.'cfg(not(windows))'.dependencies]
+tar = "0.4"
+flate2 = "1"
 
 [profile.release]
 opt-level = "s"

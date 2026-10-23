@@ -21,7 +21,11 @@ impl Window {
         let days = if self.days.len() == 7 {
             "tutti i giorni".to_string()
         } else {
-            self.days.iter().map(|d| DAYS[*d as usize]).collect::<Vec<_>>().join(",")
+            self.days
+                .iter()
+                .map(|d| DAYS[*d as usize])
+                .collect::<Vec<_>>()
+                .join(",")
         };
         format!("{days} {}-{}", fmt_time(self.start), fmt_time(self.end))
     }
@@ -90,9 +94,16 @@ pub fn parse_window(days: &str, range: &str) -> Result<Window, String> {
         .ok_or_else(|| format!("fascia non valida: '{range}' (usa HH:MM-HH:MM)"))?;
     let (start, end) = (parse_time(start)?, parse_time(end)?);
     if end <= start {
-        return Err("la fine deve essere dopo l'inizio (per orari a cavallo di mezzanotte usa due fasce)".into());
+        return Err(
+            "la fine deve essere dopo l'inizio (per orari a cavallo di mezzanotte usa due fasce)"
+                .into(),
+        );
     }
-    Ok(Window { days: parse_days(days)?, start, end })
+    Ok(Window {
+        days: parse_days(days)?,
+        start,
+        end,
+    })
 }
 
 #[cfg(test)]

@@ -17,7 +17,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: Config) -> Self {
-        Self { config: Mutex::new(config), paused_until: Mutex::new(None) }
+        Self {
+            config: Mutex::new(config),
+            paused_until: Mutex::new(None),
+        }
     }
 
     pub async fn is_paused(&self) -> bool {
@@ -58,16 +61,22 @@ pub async fn run(bot: Bot, state: Arc<AppState>) {
     loop {
         let (enforce, interval, owners, in_window) = {
             let c = state.config.lock().await;
-            (c.enforce, c.poll_interval_seconds.max(1), c.owner_ids.clone(), schedule::allowed_now(&c.schedule))
+            (
+                c.enforce,
+                c.poll_interval_seconds.max(1),
+                c.owner_ids.clone(),
+                schedule::allowed_now(&c.schedule),
+            )
         };
 
         if enforce && !in_window && !state.is_paused().await {
-            let killed = {
+            let (killed, ban_message) = {
                 let c = state.config.lock().await;
-                kill_blocked(&mut sys, &c)
+                (kill_blocked(&mut sys, &c), c.ban_message.clone())
             };
             if !killed.is_empty() {
                 log::info!("chiusi: {killed:?}");
+                crate::ui::show_ban_message(&ban_message);
                 let text = format!("🚫 Gioco chiuso: {}", killed.join(", "));
                 for id in owners {
                     let _ = bot.send_message(ChatId(id as i64), &text).await;

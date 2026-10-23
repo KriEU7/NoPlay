@@ -22,8 +22,13 @@ fn run(program: &str, args: &[&str]) -> Result<()> {
 pub fn install() -> Result<String> {
     let exe = std::env::current_exe()?;
     let command = format!("\"{}\"", exe.display());
-    run("schtasks", &["/Create", "/TN", "NoPlay", "/TR", &command, "/SC", "ONLOGON", "/RL", "LIMITED", "/F"])
-        .context("serve un terminale avviato come amministratore")?;
+    run(
+        "schtasks",
+        &[
+            "/Create", "/TN", "NoPlay", "/TR", &command, "/SC", "ONLOGON", "/RL", "LIMITED", "/F",
+        ],
+    )
+    .context("serve un terminale avviato come amministratore")?;
     Ok("Avvio automatico installato (attività pianificata 'NoPlay').".into())
 }
 
@@ -53,13 +58,22 @@ pub fn install() -> Result<String> {
     std::fs::create_dir_all(path.parent().context("percorso unit non valido")?)?;
     std::fs::write(&path, unit)?;
     run("systemctl", &["--user", "daemon-reload"])?;
-    run("systemctl", &["--user", "enable", "--now", "noplay.service"])?;
-    Ok(format!("Servizio systemd utente installato e avviato ({}).", path.display()))
+    run(
+        "systemctl",
+        &["--user", "enable", "--now", "noplay.service"],
+    )?;
+    Ok(format!(
+        "Servizio systemd utente installato e avviato ({}).",
+        path.display()
+    ))
 }
 
 #[cfg(target_os = "linux")]
 pub fn uninstall() -> Result<String> {
-    run("systemctl", &["--user", "disable", "--now", "noplay.service"])?;
+    run(
+        "systemctl",
+        &["--user", "disable", "--now", "noplay.service"],
+    )?;
     std::fs::remove_file(unit_path()?)?;
     run("systemctl", &["--user", "daemon-reload"])?;
     Ok("Servizio systemd utente rimosso.".into())

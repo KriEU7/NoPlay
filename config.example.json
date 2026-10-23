@@ -37,8 +37,11 @@
     "ubisoftconnect",
     "upc"
   ],
-  "poll_interval_seconds": 5,
+  "poll_interval_seconds": 2,
   "enforce": true,
+  "ban_message": "🚫 Sei stato bannato dal gioco. Riprova più tardi.",
+  "auto_update": true,
+  "update_check_interval_hours": 6,
   "schedule": [
     { "days": [0, 1, 2, 3, 4], "start": 1020, "end": 1140 },
     { "days": [5, 6], "start": 600, "end": 750 }
