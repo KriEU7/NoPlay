@@ -24,10 +24,20 @@ indicati in `config.json` e **non esegue comandi shell arbitrari**: ogni azione 
 | `/allow <minuti>` | permette i giochi per un tempo limitato |
 | `/add <nome>` / `/remove <nome>` | modifica la blocklist (nome processo, senza `.exe`) |
 | `/list` | mostra la blocklist |
+| `/schedule` | mostra le fasce in cui i giochi sono permessi |
+| `/schedule add <giorni> <HH:MM-HH:MM>` | aggiunge una fascia, es. `add lun-ven 17:00-19:00`, `add sab,dom 10:00-12:30` |
+| `/schedule del <n>` / `/schedule clear` | rimuove una fascia / tutte le fasce |
 | `/lock` | blocca lo schermo |
 | `/help` | elenco comandi |
 
 Mentre il blocco è attivo, ogni `poll_interval_seconds` il programma chiude i processi in blocklist e avvisa i proprietari su Telegram.
+
+## Fasce orarie
+
+I giochi sono permessi solo dentro le fasce del `schedule` (ora locale del PC); fuori fascia vengono chiusi.
+Senza fasce, i giochi sono sempre bloccati. Le fasce si gestiscono da Telegram con `/schedule` e vengono
+salvate in `config.json`. Giorni: `lun mar mer gio ven sab dom`, intervalli (`lun-ven`), liste (`sab,dom`) o `tutti`.
+`/allow <minuti>` resta come eccezione una tantum, e `/enforce off` disattiva tutto.
 
 ## Note
 

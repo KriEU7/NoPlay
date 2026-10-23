@@ -3,6 +3,8 @@ use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::schedule::Window;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub bot_token: String,
@@ -14,6 +16,9 @@ pub struct Config {
     pub poll_interval_seconds: u64,
     #[serde(default = "default_true")]
     pub enforce: bool,
+    /// Fasce in cui i giochi sono permessi. Se vuota, i giochi sono sempre bloccati.
+    #[serde(default)]
+    pub schedule: Vec<Window>,
 }
 
 fn default_poll() -> u64 {
@@ -54,6 +59,6 @@ impl Config {
 
     pub fn is_blocked(&self, process_name: &str) -> bool {
         let n = normalize(process_name);
-        self.blocklist.iter().any(|b| *b == n)
+        self.blocklist.contains(&n)
     }
 }

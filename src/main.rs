@@ -1,5 +1,6 @@
 mod config;
 mod enforcer;
+mod schedule;
 
 use std::{
     process::Command as Proc,
@@ -33,6 +34,8 @@ enum Command {
     Remove(String),
     #[command(description = "mostra la blocklist")]
     List,
+    #[command(description = "[add <giorni> <HH:MM-HH:MM> | del <n> | clear]: fasce in cui i giochi sono permessi")]
+    Schedule(String),
     #[command(description = "blocca lo schermo del PC")]
     Lock,
 }
@@ -85,8 +88,9 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
             } else {
                 open.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>().join(", ")
             };
+            let window = if schedule::allowed_now(&cfg.schedule) { "giochi permessi ora" } else { "fuori fascia" };
             format!(
-                "Blocco: {}\nPausa: {paused}\nGiochi aperti: {games}",
+                "Blocco: {}\nFascia: {window}\nPausa: {paused}\nGiochi aperti: {games}",
                 if cfg.enforce { "attivo" } else { "disattivato" }
             )
         }
@@ -132,6 +136,33 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
             }
         }
         Command::List => state.config.lock().await.blocklist.join("\n"),
+        Command::Schedule(args) => {
+            let mut cfg = state.config.lock().await;
+            let parts: Vec<&str> = args.split_whitespace().collect();
+            match parts.as_slice() {
+                [] | ["list"] => schedule_list(&cfg),
+                ["add", days, range] => match schedule::parse_window(days, range) {
+                    Ok(w) => {
+                        let text = format!("Aggiunta fascia: {}", w.describe());
+                        cfg.schedule.push(w);
+                        save_reply(&cfg, &text)
+                    }
+                    Err(e) => e,
+                },
+                ["del", n] => match n.parse::<usize>() {
+                    Ok(n) if (1..=cfg.schedule.len()).contains(&n) => {
+                        let w = cfg.schedule.remove(n - 1);
+                        save_reply(&cfg, &format!("Rimossa fascia: {}", w.describe()))
+                    }
+                    _ => "Numero di fascia non valido, vedi /schedule".into(),
+                },
+                ["clear"] => {
+                    cfg.schedule.clear();
+                    save_reply(&cfg, "Fasce rimosse: i giochi sono sempre bloccati.")
+                }
+                _ => "Uso:\n/schedule\n/schedule add lun-ven 17:00-19:00\n/schedule add sab,dom 10:00-12:30\n/schedule del 1\n/schedule clear".into(),
+            }
+        }
         Command::Lock => match lock_screen() {
             Ok(()) => "Schermo bloccato.".into(),
             Err(e) => format!("Impossibile bloccare lo schermo: {e}"),
@@ -140,6 +171,15 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, state: Arc<AppState>) -> R
 
     bot.send_message(msg.chat.id, reply).await?;
     Ok(())
+}
+
+fn schedule_list(cfg: &Config) -> String {
+    if cfg.schedule.is_empty() {
+        return "Nessuna fascia: i giochi sono sempre bloccati.".into();
+    }
+    let lines: Vec<String> =
+        cfg.schedule.iter().enumerate().map(|(i, w)| format!("{}. {}", i + 1, w.describe())).collect();
+    format!("Giochi permessi in queste fasce:\n{}", lines.join("\n"))
 }
 
 fn save_reply(cfg: &Config, ok: &str) -> String {

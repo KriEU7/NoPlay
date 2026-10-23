@@ -7,7 +7,7 @@ use sysinfo::{ProcessesToUpdate, System};
 use teloxide::{prelude::*, types::ChatId};
 use tokio::sync::Mutex;
 
-use crate::config::Config;
+use crate::{config::Config, schedule};
 
 pub struct AppState {
     pub config: Mutex<Config>,
@@ -56,12 +56,12 @@ pub fn kill_blocked(sys: &mut System, cfg: &Config) -> Vec<String> {
 pub async fn run(bot: Bot, state: Arc<AppState>) {
     let mut sys = System::new();
     loop {
-        let (enforce, interval, owners) = {
+        let (enforce, interval, owners, in_window) = {
             let c = state.config.lock().await;
-            (c.enforce, c.poll_interval_seconds.max(1), c.owner_ids.clone())
+            (c.enforce, c.poll_interval_seconds.max(1), c.owner_ids.clone(), schedule::allowed_now(&c.schedule))
         };
 
-        if enforce && !state.is_paused().await {
+        if enforce && !in_window && !state.is_paused().await {
             let killed = {
                 let c = state.config.lock().await;
                 kill_blocked(&mut sys, &c)
